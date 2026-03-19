@@ -1,4 +1,4 @@
-Build and Release VPM Packagename: Build and Release VPM Package
+name: Build and Release VPM Package
 
 on:
   workflow_dispatch:
@@ -115,72 +115,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - 'Packages/com.sizimityper.reflector-shader/package.json'
-      - 'Website/index.json'
-
-env:
-  packageName: "com.sizimityper.reflector-shader"
-  githubUser: "sizimityper"
-  githubRepo: "reflector-shader"
-
-on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - 'Packages/com.sizimityper.reflector-shader/package.json'
-      - 'Website/index.json'
-
-env:
-  packageName: "com.sizimityper.reflector-shader"
-  githubUser: "sizimityper"
-  githubRepo: "reflector-shader"
-
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.get_version.outputs.version }}
-      zipFile: ${{ steps.set_filenames.outputs.zipFile }}
-      hash: ${{ steps.get_hash.outputs.hash }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Get version from package.json
-        id: get_version
-        run: |
-          VERSION=$(jq -r '.version' Packages/${{ env.packageName }}/package.json)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Set filenames
-        id: set_filenames
-        run: |
-          echo "zipFile=${{ env.packageName }}-${{ steps.get_version.outputs.version }}.zip" >> $GITHUB_OUTPUT
-
-      - name: Zip package
-        run: |
-          cd Packages/${{ env.packageName }}
-          zip -r ../../${{ steps.set_filenames.outputs.zipFile }} .
-
-      - name: Get zip hash
-        id: get_hash
-        run: |
-          HASH=$(sha256sum ${{ steps.set_filenames.outputs.zipFile }} | awk '{print $1}')
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-
-      - name: Create Release
-
