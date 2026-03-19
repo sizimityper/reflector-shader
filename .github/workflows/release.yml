@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - 'Packages/com.sizimityper.reflector-shader/package.json'
+      - 'Website/index.json'
 
 env:
   packageName: "com.sizimityper.reflector-shader"
@@ -39,62 +40,58 @@ jobs:
       - name: Set filenames
         id: set_filenames
         run: |
-          ZIP_FILE="${{ env.packageName }}-${{ steps.get_version.outputs.version }}.zip"
-          echo "zipFile=$ZIP_FILE" >> $GITHUB_OUTPUT
-          echo "zipFile=$ZIP_FILE" >> $GITHUB_ENV
+          echo "zipFile=${{ env.packageName }}-${{ steps.get_version.outputs.version }}.zip" >> $GITHUB_OUTPUT
 
-      - name: Zip the package
-        uses: TheDoctor0/zip-release@0.7.6
-        with:
-          type: 'zip'
-          filename: '${{ env.zipFile }}'
-          directory: 'Packages/${{ env.packageName }}'
-          exclusions: '*.git* /*node_modules/* .editorconfig'
+      - name: Zip package
+        run: |
+          cd Packages
+          zip -r ../${{ steps.set_filenames.outputs.zipFile }} ${{ env.packageName }}/
 
-      - name: Move zip to workspace root
-        run: mv "Packages/${{ env.packageName }}/${{ env.zipFile }}" .
-
-      - name: Get SHA256 hash
+      - name: Get zip hash
         id: get_hash
         run: |
-          HASH=$(sha256sum "${{ env.zipFile }}" | awk '{ print $1 }')
+          HASH=$(sha256sum ${{ steps.set_filenames.outputs.zipFile }} | awk '{print $1}')
           echo "hash=$HASH" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
-        uses: ncipollo/release-action@v1
-        with:
-          artifacts: '${{ env.zipFile }}'
-          tag: '${{ steps.get_version.outputs.version }}'
-          name: 'Version ${{ steps.get_version.outputs.version }}'
-          allowUpdates: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Update VPM listing (index.json)
+      - name: Create Release
+        continue-on-error: true
         run: |
-          VERSION="${{ steps.get_version.outputs.version }}"
-          ZIP_FILE="${{ env.zipFile }}"
-          HASH="${{ steps.get_hash.outputs.hash }}"
-          URL="https://github.com/${{ env.githubUser }}/${{ env.githubRepo }}/releases/download/${VERSION}/${ZIP_FILE}"
-          DISPLAY_NAME=$(jq -r '.displayName' Packages/${{ env.packageName }}/package.json)
-          DESCRIPTION=$(jq -r '.description' Packages/${{ env.packageName }}/package.json)
-          UNITY=$(jq -r '.unity' Packages/${{ env.packageName }}/package.json)
-          jq --arg pkg "${{ env.packageName }}" --arg ver "$VERSION" --arg url "$URL" --arg hash "$HASH" --arg dn "$DISPLAY_NAME" --arg desc "$DESCRIPTION" --arg unity "$UNITY" '.packages[$pkg].versions[$ver] = {"name":$pkg,"displayName":$dn,"version":$ver,"unity":$unity,"description":$desc,"url":$url,"zipSHA256":$hash}' Website/index.json > Website/index.json.tmp
+          gh release create ${{ steps.get_version.outputs.version }} \
+            ${{ steps.set_filenames.outputs.zipFile }} \
+            --title "v${{ steps.get_version.outputs.version }}" \
+            --notes "VPM Package v${{ steps.get_version.outputs.version }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update index.json
+        run: |
+          VERSION=${{ steps.get_version.outputs.version }}
+          HASH=${{ steps.get_hash.outputs.hash }}
+          ZIP_URL="https://github.com/${{ env.githubUser }}/${{ env.githubRepo }}/releases/download/$VERSION/${{ steps.set_filenames.outputs.zipFile }}"
+
+          jq --arg ver "$VERSION" \
+             --arg url "$ZIP_URL" \
+             --arg hash "$HASH" \
+             --argjson pkg "$(jq '.' Packages/${{ env.packageName }}/package.json)" \
+             '.packages["${{ env.packageName }}"].versions[$ver] = ($pkg + {"url": $url, "zipSHA256": $hash})' \
+             Website/index.json > Website/index.json.tmp
           mv Website/index.json.tmp Website/index.json
 
       - name: Commit updated index.json
         uses: EndBug/add-and-commit@v9
         with:
-          add: 'Website/index.json'
-          message: 'chore: update VPM listing for v${{ steps.get_version.outputs.version }}'
-          push: true
+          add: Website/index.json
+          message: "Update VPM listing for v${{ steps.get_version.outputs.version }}"
           default_author: github_actions
 
   deploy-pages:
-    needs: build
+    needs: [build]
+    if: always()
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -104,10 +101,16 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
-      - name: Upload Website folder to Pages
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-pages-content
+          path: Website/
+
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'Website'
+          path: Website/
 
       - name: Deploy to GitHub Pages
         id: deployment
