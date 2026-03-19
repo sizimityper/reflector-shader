@@ -1,0 +1,11 @@
+{
+  "name": "sizimityper's VPM Repository",
+  "id": "com.sizimityper.vpm",
+  "url": "https://sizimityper.github.io/reflector-shader/index.json",
+  "author": "sizimityper",
+  "packages": {
+    "com.sizimityper.reflector-shader": {
+      "versions": {}
+    }
+  }
+}
