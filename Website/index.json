@@ -5,7 +5,17 @@
   "author": "sizimityper",
   "packages": {
     "com.sizimityper.reflector-shader": {
-      "versions": {}
+      "versions": {
+        "1.0.0": {
+          "name": "com.sizimityper.reflector-shader",
+          "displayName": "Reflector Shader",
+          "version": "1.0.0",
+          "unity": "2019.4",
+          "description": "VRChat向け反射板シェーダー / Reflective shader for VRChat avatars and worlds.",
+          "url": "https://github.com/sizimityper/reflector-shader/releases/download/1.0.0/com.sizimityper.reflector-shader-1.0.0.zip",
+          "zipSHA256": "a574a91b77c993302652a36b580650e1d27c8b747b8dd9ca52c93a24a0d59791"
+        }
+      }
     }
   }
 }
