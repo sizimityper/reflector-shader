@@ -1,117 +1,38 @@
-name: Build and Release VPM Package
+name: Release VPM Package
 
 on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - 'Packages/com.sizimityper.reflector-shader/package.json'
-      - 'Website/index.json'
-
-env:
-  packageName: "com.sizimityper.reflector-shader"
-  githubUser: "sizimityper"
-  githubRepo: "reflector-shader"
-
-permissions:
-  contents: write
-  pages: write
-  id-token: write
+  release:
+    types:
+      - published
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.get_version.outputs.version }}
-      zipFile: ${{ steps.set_filenames.outputs.zipFile }}
-      hash: ${{ steps.get_hash.outputs.hash }}
-
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Get version from package.json
-        id: get_version
+      - name: Get version
+        id: version
         run: |
-          VERSION=$(jq -r '.version' Packages/${{ env.packageName }}/package.json)
+          VERSION=$(jq -r .version Packages/com.sizimityper.reflector-shader/package.json)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Set filenames
-        id: set_filenames
+      - name: Create zip (VPM構造: package.json がルートに来るように)
         run: |
-          echo "zipFile=${{ env.packageName }}-${{ steps.get_version.outputs.version }}.zip" >> $GITHUB_OUTPUT
+          cd Packages/com.sizimityper.reflector-shader
+          zip -r ../../com.sizimityper.reflector-shader-${{ steps.version.outputs.version }}.zip .
 
-      - name: Zip package
-        run: |
-          cd Packages/${{ env.packageName }}
-          zip -r ../../${{ steps.set_filenames.outputs.zipFile }} .
-
-      - name: Get zip hash
-        id: get_hash
-        run: |
-          HASH=$(sha256sum ${{ steps.set_filenames.outputs.zipFile }} | awk '{print $1}')
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-
-      - name: Create Release
-        continue-on-error: true
-        run: |
-          gh release create ${{ steps.get_version.outputs.version }} \
-            ${{ steps.set_filenames.outputs.zipFile }} \
-            --title "v${{ steps.get_version.outputs.version }}" \
-            --notes "VPM Package v${{ steps.get_version.outputs.version }}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Update index.json
-        run: |
-          VERSION=${{ steps.get_version.outputs.version }}
-          HASH=${{ steps.get_hash.outputs.hash }}
-          ZIP_URL="https://github.com/${{ env.githubUser }}/${{ env.githubRepo }}/releases/download/$VERSION/${{ steps.set_filenames.outputs.zipFile }}"
-
-          jq --arg ver "$VERSION" \
-             --arg url "$ZIP_URL" \
-             --arg hash "$HASH" \
-             --argjson pkg "$(jq '.' Packages/${{ env.packageName }}/package.json)" \
-             '.packages["${{ env.packageName }}"].versions[$ver] = ($pkg + {"url": $url, "zipSHA256": $hash})' \
-             Website/index.json > Website/index.json.tmp
-          mv Website/index.json.tmp Website/index.json
-
-      - name: Commit updated index.json
-        uses: EndBug/add-and-commit@v9
+      - name: Upload zip to release
+        uses: softprops/action-gh-release@v2
         with:
-          add: Website/index.json
-          message: "Update VPM listing for v${{ steps.get_version.outputs.version }}"
-          default_author: github_actions
+          files: com.sizimityper.reflector-shader-${{ steps.version.outputs.version }}.zip
 
-  deploy-pages:
-    needs: [build]
-    if: always()
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Trigger VPM listing update
+        uses: peter-evans/repository-dispatch@v3
         with:
-          ref: main
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: github-pages-content
-          path: Website/
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: Website/
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          token: ${{ secrets.VPM_LISTING_TOKEN }}
+          repository: sizimityper/vpm
+          event-type: update-listing
