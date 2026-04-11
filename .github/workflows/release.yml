@@ -4,6 +4,12 @@ on:
   release:
     types:
       - published
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag to upload to'
+        required: true
+        default: '0.1.3'
 
 jobs:
   release:
@@ -29,6 +35,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: com.sizimityper.reflector-shader-${{ steps.version.outputs.version }}.zip
+          tag_name: ${{ github.event.inputs.tag_name || github.event.release.tag_name }}
 
       - name: Trigger VPM listing update
         uses: peter-evans/repository-dispatch@v3
